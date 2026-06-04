@@ -22,12 +22,24 @@ int pid;
 static struct nla_policy tresor_nl_gnl_policy[TRESOR_NL_ATTR_MAX + 1] =
 {
     [DEMO_ATTR1_STRING] = { .type = NLA_NUL_STRING, .len = 256 },   /* variable length NULL terminated string */
-    [TRESOR_NL_ATTR1_MSG] = { .len = sizeof(struct tresor_nl_msg)},
+    [TRESOR_NL_ATTR1_MSG] = { .type = NLA_BINARY, .len = sizeof(struct tresor_nl_msg)},
 };
 
+int tresor_nl_cmd(struct sk_buff *skb_2, struct genl_info *info);
+/* Netlink genl ops */
+static struct genl_ops doc_exmpl_gnl_ops_echo[] = {
+    {
+    .cmd = TRESOR_NL_CMD,
+    .flags = 0,
+    .policy = tresor_nl_gnl_policy,
+    .doit = tresor_nl_cmd,
+    .dumpit = NULL,
+    },
+};
 
 static struct genl_family tresor_nl_gnl_family = {
-    .id = GENL_ID_GENERATE, // genetlink should generate an id
+    .ops = doc_exmpl_gnl_ops_echo,
+    .n_ops = 1,
     .hdrsize = 0,
     .name = TRESOR_NL_FAMILY_NAME,
     .version = TRESOR_NL_VERSION,
@@ -256,7 +268,7 @@ void tresor_crypto_encrypt(struct crypto_tfm *tfm, u8 *dst, const u8 *src)
 
     if(tresord_avail == 0) {
         printk(KERN_INFO "tresorlkm: ERROR tresor_crypto_setkey: No daemon available!");
-        return -1;
+        return;
     }
 
     mutex_lock(&mutex_nl); // lock mutex until encryption is finished
@@ -305,7 +317,7 @@ void tresor_crypto_decrypt(struct crypto_tfm *tfm, u8 *dst, const u8 *src)
 
     if(tresord_avail == 0) {
         printk(KERN_INFO "tresorlkm: ERROR tresor_crypto_setkey: No daemon available!");
-        return -1;
+        return;
     }
 
     mutex_lock(&mutex_nl); // lock mutex until encryption is finished
@@ -368,18 +380,6 @@ static struct crypto_alg tresor_alg = {
 };
 
 
-/* Netlink genl ops */
-static struct genl_ops doc_exmpl_gnl_ops_echo[] = {
-    {
-    .cmd = TRESOR_NL_CMD,
-    .flags = 0,
-    .policy = tresor_nl_gnl_policy,
-    .doit = tresor_nl_cmd,
-    .dumpit = NULL,
-    },
-};
-
-
 /*
  * User mode helper to start daemon
  */
@@ -418,7 +418,7 @@ static int __init tresor_init(void)
     //msg_counter = 100;
     //printk(KERN_INFO "tresorlkm: %s msg_counter: %d\n", __FUNCTION__, msg_counter);
 
-    rc = genl_register_family_with_ops(&tresor_nl_gnl_family, doc_exmpl_gnl_ops_echo);
+    rc = genl_register_family(&tresor_nl_gnl_family);
 
     if (rc != 0) {
         printk(KERN_ALERT "tresorlkm: %s: Error creating socket.\n", __FUNCTION__);

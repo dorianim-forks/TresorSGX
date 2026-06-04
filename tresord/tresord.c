@@ -29,7 +29,7 @@
 static struct nla_policy tresor_nl_gnl_policy[TRESOR_NL_ATTR_MAX + 1] =
 {
   [DEMO_ATTR1_STRING] = {.type = NLA_STRING,.maxlen = 256}, // TODO: wont work when without
-  [TRESOR_NL_ATTR1_MSG] = { .type = NLA_UNSPEC,.maxlen = sizeof(struct tresor_nl_msg)},
+  [TRESOR_NL_ATTR1_MSG] = { .type = NLA_BINARY,.maxlen = sizeof(struct tresor_nl_msg)},
 };
 
 // netlink socket - must be global because of usage in signal handler
@@ -190,7 +190,7 @@ int initSealedCrypto(sgx_enclave_id_t eid, char *key, int key_len, char const* p
 	blob_len = SEAL_MAX_BLOB_SIZE;
 
 	// try loading sealed blob
-	long *buf_length_long = 0; 
+	long buf_length_long = 0; 
 	ret = load_file(path, sealedBlob, &buf_length_long);
 
 	// if seal not available - generate new one

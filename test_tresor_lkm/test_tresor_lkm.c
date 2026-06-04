@@ -3,11 +3,12 @@
 //#include <linux/kmod.h>	
 #include <linux/kernel.h>	
 #include <linux/string.h>	
+#include <linux/scatterlist.h>
 
 /* Crypto API */
-#include <linux/crypto.h>
+#include <crypto/skcipher.h>
 
-#define BLOCK_SIZE (16) //in bytes
+#define TRESOR_BLOCK_SIZE (16) // in bytes
 
 unsigned char test_plain_text[64] =   {	0x6b,0xc1,0xbe,0xe2,0x2e,0x40,0x9f,0x96,0xe9,0x3d,0x7e,0x11,0x73,0x93,0x17,0x2a,
 										0xae,0x2d,0x8a,0x57,0x1e,0x03,0xac,0x9c,0x9e,0xb7,0x6f,0xac,0x45,0xaf,0x8e,0x51,
@@ -16,7 +17,8 @@ unsigned char test_plain_text[64] =   {	0x6b,0xc1,0xbe,0xe2,0x2e,0x40,0x9f,0x96,
 
 unsigned char test_key_128[16] =      {	0x2b,0x7e,0x15,0x16,0x28,0xae,0xd2,0xa6,0xab,0xf7,0x15,0x88,0x09,0xcf,0x4f,0x3c};
 
-void printCharAsHex(const unsigned char mem[], int count) {
+static void printCharAsHex(const unsigned char mem[], unsigned int count)
+{
    int i, k = 0;
     char hexbyte[11] = "";
     char hexline[126] = "";
@@ -34,14 +36,25 @@ void printCharAsHex(const unsigned char mem[], int count) {
     }
 }
 
-int test128(struct crypto_cipher *tfm, unsigned long numBlocks)
+static int test128(struct crypto_skcipher *tfm, unsigned long numBlocks)
 {
-	unsigned int buffer_size = numBlocks * BLOCK_SIZE;
+	unsigned int buffer_size = numBlocks * TRESOR_BLOCK_SIZE;
 	unsigned int i;
-	unsigned char testVector[buffer_size];
-	unsigned char testResult[buffer_size];
+	unsigned char testVector[sizeof(test_plain_text)] = { 0 };
+	unsigned char testResult[sizeof(test_plain_text)] = { 0 };
+	struct skcipher_request *req;
+	struct scatterlist sg_src;
+	struct scatterlist sg_dst;
+	int ret;
 
-	printk(KERN_INFO "test_tresor_lkm: buffer_size: %d numBlocks: %d BLOCK_SIZE: %d\n", buffer_size, numBlocks, BLOCK_SIZE);
+	if (buffer_size > sizeof(test_plain_text)) {
+		printk(KERN_ERR "test_tresor_lkm: requested %u bytes exceeds test vector size %zu\n",
+		       buffer_size, sizeof(test_plain_text));
+		return -EINVAL;
+	}
+
+	printk(KERN_INFO "test_tresor_lkm: buffer_size: %u numBlocks: %lu BLOCK_SIZE: %u\n",
+	       buffer_size, numBlocks, TRESOR_BLOCK_SIZE);
 
 	// Init the test vector and the test result
 	for (i=0;i<buffer_size;i++)
@@ -51,17 +64,39 @@ int test128(struct crypto_cipher *tfm, unsigned long numBlocks)
 	}
 
 	printCharAsHex(testVector, 16);
+
+	req = skcipher_request_alloc(tfm, GFP_KERNEL);
+	if (!req)
+		return -ENOMEM;
 	
-	printk(KERN_INFO "test_tresor_lkm: Call crypto_cipher_encrypt_one ...\n");
-	crypto_cipher_encrypt_one(tfm, testResult, testVector);
+	printk(KERN_INFO "test_tresor_lkm: Call crypto_skcipher_encrypt ...\n");
+	sg_init_one(&sg_src, testVector, buffer_size);
+	sg_init_one(&sg_dst, testResult, buffer_size);
+	skcipher_request_set_crypt(req, &sg_src, &sg_dst, buffer_size, NULL);
+	ret = crypto_skcipher_encrypt(req);
+	if (ret) {
+		printk(KERN_ERR "test_tresor_lkm: encryption failed: %d\n", ret);
+		skcipher_request_free(req);
+		return ret;
+	}
 
 	printCharAsHex(testResult, 16);
 
 	// decrypt
 
 
-	printk(KERN_INFO "test_tresor_lkm: Call crypto_cipher_decrypt_one ...\n");
-	crypto_cipher_decrypt_one(tfm, testVector, testResult);
+	printk(KERN_INFO "test_tresor_lkm: Call crypto_skcipher_decrypt ...\n");
+	sg_init_one(&sg_src, testResult, buffer_size);
+	sg_init_one(&sg_dst, testVector, buffer_size);
+	skcipher_request_set_crypt(req, &sg_src, &sg_dst, buffer_size, NULL);
+	ret = crypto_skcipher_decrypt(req);
+	if (ret) {
+		printk(KERN_ERR "test_tresor_lkm: decryption failed: %d\n", ret);
+		skcipher_request_free(req);
+		return ret;
+	}
+
+	skcipher_request_free(req);
 
 
 	printCharAsHex(testVector, 16);
@@ -73,7 +108,7 @@ int test128(struct crypto_cipher *tfm, unsigned long numBlocks)
 			return 1;
 		}
 	}
-	printk(KERN_INFO "test_tresor_lkm: Call crypto_cipher_decrypt_one ...\n");
+	printk(KERN_INFO "test_tresor_lkm: decrypt result verification passed\n");
 	return 0;
 }
 
@@ -81,39 +116,32 @@ static int __init tresor_test_init( void )
 {
 	int key_len;
 	int ret;
-	struct crypto_cipher *tfm;
+	struct crypto_skcipher *tfm;
 
-	char *cipherName = "tresorsgx";
-	//char *cipherName = "aes";
+	char *cipherName = "ecb(tresorsgx)";
+	//char *cipherName = "ecb(aes)";
 
 	printk(KERN_INFO "test_tresor_lkm: Entering: %s\n", __FUNCTION__);
 
 	ret = -EFAULT;
-
-	// run algorithm tests of the crypto API testmgr:
-	// only works if kernel is patched with tresorsgx vectors (which are copied from aes..)
-	ret = alg_test("ecb(tresorsgx)","ecb(tresorsgx)",0,0);
-	printk(KERN_INFO "test_tresor_lkm: ecb(tresorsgx): %d\n", ret);
-
-	ret = alg_test("cbc(tresorsgx)","cbc(tresorsgx)",0,0);
-	printk(KERN_INFO "test_tresor_lkm: cbc(tresorsgx): %d\n", ret);
 
 
 	// run own test vectors
 	printk(KERN_INFO "test_tresor_lkm: test tresorsgx tfm");
 
 	tfm = NULL;
-	tfm = crypto_alloc_cipher(cipherName, 0, BLOCK_SIZE);
+	tfm = crypto_alloc_skcipher(cipherName, 0, 0);
 	if (tfm == NULL || IS_ERR(tfm)) {
 		printk(KERN_ERR "test_tresor_lkm: could not allocate cipher handle for %s\n", cipherName);
 		return 0;
 	}
 
-  	key_len = BLOCK_SIZE;
+	  key_len = TRESOR_BLOCK_SIZE;
 
   	// set key
-	if (crypto_cipher_setkey(tfm, test_key_128, key_len)) {
+	if (crypto_skcipher_setkey(tfm, test_key_128, key_len)) {
 		printk(KERN_ERR "test_tresor_lkm: could not set key");
+		crypto_free_skcipher(tfm);
 		return 0;
 	}
 	printk(KERN_INFO "test_tresor_lkm: run 1 block(s):  AES-128..\n");
@@ -127,7 +155,7 @@ static int __init tresor_test_init( void )
 	}
 
 	// free cipher handle
-	crypto_free_cipher(tfm);
+	crypto_free_skcipher(tfm);
 	
 	
 	printk(KERN_INFO "test_tresor_lkm: ended successfully\n");

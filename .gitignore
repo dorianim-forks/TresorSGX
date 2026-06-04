@@ -10,4 +10,8 @@
 .tmp_versions
 sealedBlob.txt
 tresorencl_tester
+tresor_setkey
 tresord
+tresorlkm.mod
+test_tresor_lkm.mod
+container

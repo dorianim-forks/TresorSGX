@@ -32,22 +32,22 @@ typedef struct ms_enclDecrypt_t {
 } ms_enclDecrypt_t;
 
 typedef struct ms_enclavePrintf_t {
-	char* ms_string;
+	const char* ms_string;
 } ms_enclavePrintf_t;
 
 typedef struct ms_enclavePrintInt_t {
-	int* ms_num;
+	const int* ms_num;
 } ms_enclavePrintInt_t;
 
 typedef struct ms_enclavePrintHex_t {
-	char* ms_output;
+	const char* ms_output;
 	int ms_len;
 } ms_enclavePrintHex_t;
 
 static sgx_status_t SGX_CDECL tresorencl_enclavePrintf(void* pms)
 {
 	ms_enclavePrintf_t* ms = SGX_CAST(ms_enclavePrintf_t*, pms);
-	enclavePrintf((const char*)ms->ms_string);
+	enclavePrintf(ms->ms_string);
 
 	return SGX_SUCCESS;
 }
@@ -55,7 +55,7 @@ static sgx_status_t SGX_CDECL tresorencl_enclavePrintf(void* pms)
 static sgx_status_t SGX_CDECL tresorencl_enclavePrintInt(void* pms)
 {
 	ms_enclavePrintInt_t* ms = SGX_CAST(ms_enclavePrintInt_t*, pms);
-	enclavePrintInt((const int*)ms->ms_num);
+	enclavePrintInt(ms->ms_num);
 
 	return SGX_SUCCESS;
 }
@@ -63,7 +63,7 @@ static sgx_status_t SGX_CDECL tresorencl_enclavePrintInt(void* pms)
 static sgx_status_t SGX_CDECL tresorencl_enclavePrintHex(void* pms)
 {
 	ms_enclavePrintHex_t* ms = SGX_CAST(ms_enclavePrintHex_t*, pms);
-	enclavePrintHex((const char*)ms->ms_output, ms->ms_len);
+	enclavePrintHex(ms->ms_output, ms->ms_len);
 
 	return SGX_SUCCESS;
 }

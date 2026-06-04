@@ -5,7 +5,7 @@
 #include <wchar.h>
 #include <stddef.h>
 #include <string.h>
-#include "sgx_edger8r.h" /* for sgx_satus_t etc. */
+#include "sgx_edger8r.h" /* for sgx_status_t etc. */
 
 
 #include <stdlib.h> /* for size_t */
@@ -16,9 +16,18 @@
 extern "C" {
 #endif
 
+#ifndef ENCLAVEPRINTF_DEFINED__
+#define ENCLAVEPRINTF_DEFINED__
 void SGX_UBRIDGE(SGX_NOCONVENTION, enclavePrintf, (const char* string));
+#endif
+#ifndef ENCLAVEPRINTINT_DEFINED__
+#define ENCLAVEPRINTINT_DEFINED__
 void SGX_UBRIDGE(SGX_NOCONVENTION, enclavePrintInt, (const int* num));
+#endif
+#ifndef ENCLAVEPRINTHEX_DEFINED__
+#define ENCLAVEPRINTHEX_DEFINED__
 void SGX_UBRIDGE(SGX_NOCONVENTION, enclavePrintHex, (const char* output, int len));
+#endif
 
 sgx_status_t enclInitCrypto(sgx_enclave_id_t eid, char algorithm, unsigned char* key, size_t key_len);
 sgx_status_t enclInitSealedCrypto(sgx_enclave_id_t eid, uint32_t* retval, char algorithm, unsigned char* key, int key_len, unsigned char* buf, int buf_len, int* seal_len);
